@@ -49,25 +49,15 @@ $sendEmail = $FALSE
 # $datetime = Get-Date -Format "yyyy-MM-dd_HHmmss";
 $titleDate = Get-Date -Format  "ddd, MMM d, yyyy"
 
-$header = Get-Content .\email-header.txt -Raw
-$header = $header -replace "{{DateDay}}", $titleDate
+# start building the HTML Body of the email
+$emailHeader = Get-Content .\email-header.html -Raw
+$emailHeader = $emailHeader -replace "##DayDate##", $titleDate
+ Add-Content $diskReport $emailHeader
 
- Add-Content $diskReport $header
- $tableHeader = "
- <table width='100%'><tbody>
-	<tr bgcolor=#CCCCCC>
-    <td width='10%' align='center'>Server (Name)</td>
-	<td width='5%' align='center'>Drive Label</td>
-	<td width='15%' align='center'>Drive Name (Letter)</td>
-	<td width='10%' align='center'>Capacity (GB)</td>
-	<td width='10%' align='center'>Used (GB)</td>
-	<td width='10%' align='center'>Free (GB)</td>
-	<td width='5%' align='center'>Free</td>
-	</tr>
-"
-Add-Content $diskReport $tableHeader
 ### should we be doing this another way? https://www.red-gate.com/simple-talk/sysadmin/powershell/powershell-day-to-day-admin-tasks-monitoring-performance/
 $disks = Get-WmiObject -ComputerName . -Class Win32_Volume -Filter "DriveType = 3" | Where-Object {$_.Label -ne "System Reserved"}
+ 
+# add a row for each volume to the table
 foreach($disk in $disks)
 {        
 	$computer = $disk.SystemName;
@@ -113,18 +103,10 @@ foreach($disk in $disks)
 	$i++		
 }
 
-$tableDescription = "
- </table><br />
- <table width='50%'>
-	<tr bgcolor='White'>
-		<td width='50%' align='center' bgcolor='#FBB917'>Warning less than $percentWarning% free space</td>
-		<td width='50%' align='center' bgcolor='#FF0000'>Critical less than $percentCritical% free space</td>
-	</tr>
-</table>
-"
-
-Add-Content $diskReport $tableDescription
-Add-Content $diskReport "</body></html>"
+$emailFooter = Get-Content .\email-footer.html -Raw
+$emailFooter = $emailFooter -replace "##percentWarning##", $percentWarning
+$emailFooter = $emailFooter -replace "##percentCritical##", $percentCritical
+Add-Content $diskReport $emailFooter
 
 if ($sendEmail)
 {
