@@ -1,6 +1,6 @@
 ﻿# ASL's Disk Space Alert by JRF, started in 2014
 param(
-    [string]$computerRename = "DS2034", 
+    [string]$computerRename = "BetterName", 
     [int]$percentWarning = 10,
     [int]$percentCritical = 3 
 	)
@@ -9,7 +9,7 @@ param(
 # example command line with all (optional) params passed:
 # > powershell.exe -ExecutionPolicy Bypass -File .\DiskSpace-Alert.ps1 -computerRename DS2034 -percentWarning 5 -percentCritical 2
 
-show passed in variables to see what we are overriding
+<# show passed in variables to see what we are overriding
 Write-Host "Num Args: " $args.Length;
 foreach ($arg in $args)
 {
@@ -17,7 +17,8 @@ foreach ($arg in $args)
 }
 Write-Host "Param: $computerRename";
 Write-Host "Param: $percentWarning";
-Write-Host "Param: $percentCritical";
+Write-Host "Param: $percentCritical"; 
+#>
 
 # Script does NOT generate a report when Available Disk space reaches specified Threshold (Checks for disk space issues)
 
@@ -46,50 +47,11 @@ $whiteColor = "#FFFFFF"
 $i = 0; # not really being used anymore
 $sendEmail = $FALSE
 # $datetime = Get-Date -Format "yyyy-MM-dd_HHmmss";
-$titleDate = get-date -uformat "%Y-%m-%d - %A"
+$titleDate = Get-Date -Format  "ddd, MMM d, yyyy"
 
-$header = "
-		<html>
-		<head>
-		<meta http-equiv='Content-Type' content='text/html; charset=iso-8859-1'>
-		<title>DiskSpace Alert</title>
-		<STYLE TYPE='text/css'>
-		<!--
-        	table {
-            		border: thin solid #666666;
-        	}
-		td {
-			font-family: Tahoma;
-			font-size: 11px;
-			border-top: 1px solid #999999;
-			border-right: 1px solid #999999;
-			border-bottom: 1px solid #999999;
-			border-left: 1px solid #999999;
-			padding-top: 0px;
-			padding-right: 0px;
-			padding-bottom: 0px;
-			padding-left: 0px;
-		}
-		body {
-			margin-left: 5px;
-			margin-top: 5px;
-			margin-right: 0px;
-			margin-bottom: 10px;
-			table {
-			border: thin solid #000000;
-		}
-		-->
-		</style>
-		</head>
-		<body>
-		<table width='100%'>
-		<tr bgcolor='#CCCCCC'>
-		<td colspan='7' height='25' align='center'>
-		<font face='tahoma' color='#003399' size='4'><strong>DiskSpace Alert for $titledate</strong></font>
-		</td>
-		</tr>
-		</table>
-"
+$header = Get-Content .\email-header.txt -Raw
+$header = $header -replace "{{DateDay}}", $titleDate
+
  Add-Content $diskReport $header
  $tableHeader = "
  <table width='100%'><tbody>
