@@ -1,6 +1,6 @@
 ﻿# ASL's Disk Space Alert by JRF, started in 2014
 param(
-    [string]$computerRename = "BetterName", 
+    [string]$computerRename = "", # option to override and give this device a better name
     [int]$percentWarning = 10,
     [int]$percentCritical = 3 
 	)
@@ -43,7 +43,6 @@ If (Test-Path $diskReport) { Remove-Item $diskReport } # prevent needing to over
 $redColor = "#FF0000"
 $orangeColor = "#FBB917"
 $whiteColor = "#FFFFFF"
-$i = 0; # not really being used anymore
 $sendEmail = $FALSE
 # $datetime = Get-Date -Format "yyyy-MM-dd_HHmmss";
 $titleDate = Get-Date -Format  "ddd, MMM d, yyyy"
@@ -58,48 +57,52 @@ $disks = Get-WmiObject -ComputerName . -Class Win32_Volume -Filter "DriveType = 
  
 # add a row for each volume to the table
 foreach($disk in $disks)
-{        
-	$computer = $disk.SystemName;
-	if ($computerRename -ne "")
-		{ $computer = $computerRename }
-	$computerName = $disk.PSComputerName;
-	$deviceID = $disk.Label;
-	$volName = $disk.Name;
-	$driveLetter = $disk.DriveLetter;
-	[float]$size = $disk.Capacity;
-	[float]$freespace = $disk.FreeSpace; 
-	$percentFree = [Math]::Round(($freespace / $size) * 100, 2);
-	$sizeGB = [Math]::Round($size / 1073741824, 2);
-	$freeSpaceGB = [Math]::Round($freespace / 1073741824, 2);
-	$usedSpaceGB = [Math]::Round($sizeGB - $freeSpaceGB, 2);
-	$backgroundColor = $whiteColor;
+{   
+	if($disk.Label -ne "Recovery")
+	{
+		$computer = $disk.SystemName;
+		if ($computerRename -ne "")
+			{ $computer = $computerRename }
+		$computerName = $disk.PSComputerName;
+		if ($computer -ne $computerName) 
+			{ $computer = [string]::Format("{0} ({1})", $computer, $computerName) }
+		$deviceID = $disk.Label;
+		$volName = $disk.Name;
+		$driveLetter = $disk.DriveLetter;
+		[float]$size = $disk.Capacity;
+		[float]$freespace = $disk.FreeSpace; 
+		$percentFree = [Math]::Round(($freespace / $size) * 100, 2);
+		$sizeGB = [Math]::Round($size / 1073741824, 2);
+		$freeSpaceGB = [Math]::Round($freespace / 1073741824, 2);
+		$usedSpaceGB = [Math]::Round($sizeGB - $freeSpaceGB, 2);
+		$backgroundColor = $whiteColor;
+		
+		if($percentFree -lt $percentWarning) 
+		{ 
+			$backgroundColor = $orangeColor 
+			$sendEmail = $TRUE
+		}
+		if($percentFree -lt $percentCritical) 
+		{ 
+			$backgroundColor = $redColor 
+			$sendEmail = $TRUE
+		}
 	
-	if($percentFree -lt $percentWarning) 
-	{ 
-		$backgroundColor = $orangeColor 
-		$sendEmail = $TRUE
+		$dataRow = "
+			<tr>
+			<td width='10%'>$computer</td>
+			<td width='5%' align='center'>$deviceID</td>
+			<td width='15%' >$volName ($driveLetter)</td>
+			<td width='10%' align='center'>$sizeGB</td>
+			<td width='10%' align='center'>$usedSpaceGB</td>
+			<td width='10%' align='center'>$freeSpaceGB</td>
+			<td width='5%' bgcolor=`'$backgroundColor`' align='center'>$percentFree %</td>
+			</tr>
+			"
+	
+		Add-Content $diskReport $dataRow;
+		Write-Host -ForegroundColor DarkYellow "$computer $deviceID percentage free space = $percentFree";
 	}
-	if($percentFree -lt $percentCritical) 
-	{ 
-		$backgroundColor = $redColor 
-		$sendEmail = $TRUE
-	}
-
-	$dataRow = "
-		<tr>
-		<td width='10%'>$computer ($computerName)</td>
-		<td width='5%' align='center'>$deviceID</td>
-		<td width='15%' >$volName ($driveLetter)</td>
-		<td width='10%' align='center'>$sizeGB</td>
-		<td width='10%' align='center'>$usedSpaceGB</td>
-		<td width='10%' align='center'>$freeSpaceGB</td>
-		<td width='5%' bgcolor=`'$backgroundColor`' align='center'>$percentFree %</td>
-		</tr>
-		"
-
-	Add-Content $diskReport $dataRow;
-	Write-Host -ForegroundColor DarkYellow "$computer $deviceID percentage free space = $percentFree";
-	$i++		
 }
 
 $emailFooter = Get-Content .\email-footer.html -Raw
