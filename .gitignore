@@ -1,2 +1,4 @@
-/DiskSpace-Alert_Logs/**
-/keys/**
+/xDiskSpace-Alert_Logs/**
+/xkeys/**
+.vscode/sftp.json
+keys/ds2035.txt

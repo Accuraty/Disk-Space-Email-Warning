@@ -1,4 +1,6 @@
-﻿# ASL's Disk Space Alert by JRF, started in 2014
+﻿# Accuraty's Disk Space Alert by JRF, started in 2014 and rarely worked on ;)
+# Updated to work on Powershell Core 6.1+ in Feb 2019
+
 param(
     [string]$computerRename = "", # option to override and give this device a better name
     [int]$percentWarning = 10,
@@ -8,6 +10,7 @@ param(
 
 # example command line with all (optional) params passed:
 # > powershell.exe -ExecutionPolicy Bypass -File .\DiskSpace-Alert.ps1 -computerRename DS2034 -percentWarning 5 -percentCritical 2
+## note that the above is normally added as a Schedule Task or Cron job
 
 <# show passed in variables to see what we are overriding
 Write-Host "Num Args: " $args.Length;
@@ -20,9 +23,9 @@ Write-Host "Param: $percentWarning";
 Write-Host "Param: $percentCritical"; 
 #>
 
-# Script does NOT generate a report when Available Disk space reaches specified Threshold (Checks for disk space issues)
-
-$ErrorActionPreference = "SilentlyContinue";
+# Script does NOT generate a report until Available Disk space reaches specified Threshold (Checks for disk space issues)
+ 
+$ErrorActionPreference = "SilentlyContinue"; # what are the other options??
 $scriptpath = $MyInvocation.MyCommand.Definition 
 $dir = Split-Path $scriptpath 
 
@@ -30,13 +33,14 @@ $dir = Split-Path $scriptpath
 $smtpServer = "smtp.sparkpostmail.com" 
 $smtpPort = 587;
 $smtpUsername = "SMTP_Injection"
-$smtpUserPassw = Get-Content .\keys\ds3095.txt -Raw
+$smtpUserPassw = Get-Content .\keys\sample-key.txt -Raw
+# Write-Host "key is $smtpUserPassw"
 $ReportSender = "hostAdmin@accuraty.com" 
 $users = "hostAdmin@accuraty.com"  <###, "user1@mydomain.com", "user2@mydomain.com"; ###>
 $MailSubject = "ASL/Hosting - DiskSpace Issue on "
 
 # No changes needed from here on down!!!
-$reportPath = "$dir\DiskSpace-Alert_Logs\" # add if !exists then create folder
+$reportPath = "$dir\DiskSpace-Alert_Logs\" # add if !exists then manually create folder
 $reportName = "dsa$(get-date -format yyyyMMdd).htm";
 $diskReport = $reportPath + $reportName
 If (Test-Path $diskReport) { Remove-Item $diskReport } # prevent needing to overwrite if report name is the same
@@ -50,10 +54,15 @@ $titleDate = Get-Date -Format  "ddd, MMM d, yyyy"
 # start building the HTML Body of the email
 $emailHeader = Get-Content .\email-header.html -Raw
 $emailHeader = $emailHeader -replace "##DayDate##", $titleDate
- Add-Content $diskReport $emailHeader
+Add-Content $diskReport $emailHeader
 
-### should we be doing this another way? https://www.red-gate.com/simple-talk/sysadmin/powershell/powershell-day-to-day-admin-tasks-monitoring-performance/
-$disks = Get-WmiObject -ComputerName . -Class Win32_Volume -Filter "DriveType = 3" | Where-Object {$_.Label -ne "System Reserved"}
+### should we be doing this another way? 
+### https://www.red-gate.com/simple-talk/sysadmin/powershell/powershell-day-to-day-admin-tasks-monitoring-performance/
+## "Get-WmiObject" no longer works in Powershell 6+ (Core)
+## $disks = Get-WmiObject -ComputerName . -Class Win32_Volume -Filter "DriveType = 3" | Where-Object {$_.Label -ne "System Reserved"}
+## new version based on Powershell Core docs (Example 5) here; https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-psdrive?view=powershell-6
+## below in English; hey Windows, give me a list of Volumes of DriveType 3 that are not system volumes
+$disks = Get-CimInstance -Class Win32_Volume -Filter "DriveType=3" | Where-Object {!$_.SystemVolume}
  
 # add a row for each volume to the table
 foreach($disk in $disks)
@@ -116,9 +125,13 @@ if ($sendEmail)
 	{
 		Write-Host "Sending Email notification to $user"
 		
+		System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12
 		$smtp = New-Object Net.Mail.SmtpClient($smtpServer, $smtpPort)
 		$smtp.EnableSsl = $True
 		$smtp.Credentials = New-Object System.Net.NetworkCredential($smtpUsername, $smtpUserPassw)
+    # Write-Host "$smtpServer, $smtpPort"
+    # Write-Host "$smtpUsername, $smtpUserPassw"
+		
 		$msg = New-Object Net.Mail.MailMessage
 		$msg.To.Add($user)
 		$msg.From = $ReportSender
@@ -128,7 +141,15 @@ if ($sendEmail)
 			{ $msg.Subject = $MailSubject + $computerRename }
 		$msg.IsBodyHTML = $True
 		$msg.Body = Get-Content $diskReport
-		$smtp.Send($msg)
+		try {
+			$smtp.Send($msg)
+		}
+    catch {
+			"An error occurred on smtp.Send()", $_.Exception.Message
+				, "and", $_.Exception.InnerException
+				, "and ", $_.Exception.InnerException.InnerException }
 		# $body = ""
+		Send-MailMessage -From $ReportSender -To $user -Subject $MailSubject + $computer -Body $msg.Body -BodyAsHtml 1 -Port $smtpPort -SmtpServer $smtpServer -UserSsl 1
+
 	}
 }
