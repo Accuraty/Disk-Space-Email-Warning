@@ -149,7 +149,7 @@ if ($sendEmail)
 				, "and", $_.Exception.InnerException
 				, "and ", $_.Exception.InnerException.InnerException }
 		# $body = ""
-		Send-MailMessage -From $ReportSender -To $user -Subject $MailSubject + $computer -Body $msg.Body -BodyAsHtml 1 -Port $smtpPort -SmtpServer $smtpServer -UserSsl 1
+		## Send-MailMessage -From $ReportSender -To $user -Subject $MailSubject + $computer -Body $msg.Body -BodyAsHtml 1 -Port $smtpPort -SmtpServer $smtpServer -UserSsl 1
 
 	}
 }
