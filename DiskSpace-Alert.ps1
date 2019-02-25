@@ -132,6 +132,7 @@ if ($sendEmail)
     # Write-Host "$smtpServer, $smtpPort"
     # Write-Host "$smtpUsername, $smtpUserPassw"
 		
+		# Build the email message
 		$msg = New-Object Net.Mail.MailMessage
 		$msg.To.Add($user)
 		$msg.From = $ReportSender
