@@ -2,10 +2,10 @@
 # Updated to work on Powershell Core 6.1+ in Feb 2019
 
 param(
-    [string]$computerRename = "", # option to override and give this device a better name
-    [int]$percentWarning = 10,
-    [int]$percentCritical = 3 
-	)
+	[string]$computerRename = "", # option to override and give this device a better name
+	[int]$percentWarning = 10,
+	[int]$percentCritical = 3 
+)
 # for above, see https://technet.microsoft.com/en-us/library/jj554301.aspx
 
 # example command line with all (optional) params passed:
@@ -32,6 +32,7 @@ $dir = Split-Path $scriptpath
 # Variables to configure (note that a smtpUserPassw dictates the allowed "from" by IP configured on Sparkpost)
 $smtpServer = "smtp.sparkpostmail.com" 
 $smtpPort = 587;
+$smtpSsl = $True; # works on DS2035
 $smtpUsername = "SMTP_Injection"
 $smtpUserPassw = Get-Content .\keys\sample-key.txt -Raw
 # Write-Host "key is $smtpUserPassw"
@@ -62,19 +63,17 @@ Add-Content $diskReport $emailHeader
 ## $disks = Get-WmiObject -ComputerName . -Class Win32_Volume -Filter "DriveType = 3" | Where-Object {$_.Label -ne "System Reserved"}
 ## new version based on Powershell Core docs (Example 5) here; https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-psdrive?view=powershell-6
 ## below in English; hey Windows, give me a list of Volumes of DriveType 3 that are not system volumes
-$disks = Get-CimInstance -Class Win32_Volume -Filter "DriveType=3" | Where-Object {!$_.SystemVolume}
+$disks = Get-CimInstance -Class Win32_Volume -Filter "DriveType=3" | Where-Object { !$_.SystemVolume }
  
 # add a row for each volume to the table
-foreach($disk in $disks)
-{   
-	if($disk.Label -ne "Recovery")
-	{
+foreach ($disk in $disks) {   
+	if ($disk.Label -ne "Recovery") {
 		$computer = $disk.SystemName;
 		if ($computerRename -ne "")
-			{ $computer = $computerRename }
+		{ $computer = $computerRename }
 		$computerName = $disk.PSComputerName;
 		if ($computer -ne $computerName) 
-			{ $computer = [string]::Format("{0} ({1})", $computer, $computerName) }
+		{ $computer = [string]::Format("{0} ({1})", $computer, $computerName) }
 		$deviceID = $disk.Label;
 		$volName = $disk.Name;
 		$driveLetter = $disk.DriveLetter;
@@ -86,13 +85,11 @@ foreach($disk in $disks)
 		$usedSpaceGB = [Math]::Round($sizeGB - $freeSpaceGB, 2);
 		$backgroundColor = $whiteColor;
 		
-		if($percentFree -lt $percentWarning) 
-		{ 
+		if ($percentFree -lt $percentWarning) { 
 			$backgroundColor = $orangeColor 
 			$sendEmail = $TRUE
 		}
-		if($percentFree -lt $percentCritical) 
-		{ 
+		if ($percentFree -lt $percentCritical) { 
 			$backgroundColor = $redColor 
 			$sendEmail = $TRUE
 		}
@@ -119,36 +116,33 @@ $emailFooter = $emailFooter -replace "##percentWarning##", $percentWarning
 $emailFooter = $emailFooter -replace "##percentCritical##", $percentCritical
 Add-Content $diskReport $emailFooter
 
-if ($sendEmail)
-{
-	foreach ($user in $users)
-	{
-		Write-Host "Sending Email notification to $user"
+if ($sendEmail) {
+	foreach ($user in $users) {
+		Write-Host "Sending Email notification to $user via $smtpServer (SSL $smtpSsl)"
 		
 		System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12
 		$smtp = New-Object Net.Mail.SmtpClient($smtpServer, $smtpPort)
-		$smtp.EnableSsl = $True
+		$smtp.EnableSsl = $smtpSsl
 		$smtp.Credentials = New-Object System.Net.NetworkCredential($smtpUsername, $smtpUserPassw)
-    # Write-Host "$smtpServer, $smtpPort"
-    # Write-Host "$smtpUsername, $smtpUserPassw"
 		
 		# Build the email message
 		$msg = New-Object Net.Mail.MailMessage
 		$msg.To.Add($user)
 		$msg.From = $ReportSender
 		if ($computerRename -eq "")
-			{ $msg.Subject = $MailSubject + $computer }
+		{ $msg.Subject = $MailSubject + $computer }
 		else
-			{ $msg.Subject = $MailSubject + $computerRename }
+		{ $msg.Subject = $MailSubject + $computerRename }
 		$msg.IsBodyHTML = $True
 		$msg.Body = Get-Content $diskReport
 		try {
 			$smtp.Send($msg)
 		}
-    catch {
+		catch {
 			"An error occurred on smtp.Send()", $_.Exception.Message
-				, "and", $_.Exception.InnerException
-				, "and ", $_.Exception.InnerException.InnerException }
+			, "and", $_.Exception.InnerException
+			, "and ", $_.Exception.InnerException.InnerException 
+  }
 		# $body = ""
 		## Send-MailMessage -From $ReportSender -To $user -Subject $MailSubject + $computer -Body $msg.Body -BodyAsHtml 1 -Port $smtpPort -SmtpServer $smtpServer -UserSsl 1
 
